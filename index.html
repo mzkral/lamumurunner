@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lamumu Runner</title>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="hud">
+      <div class="stat"><span>Score:</span> <strong id="score">0</strong></div>
+      <div class="stat"><span>AURA:</span> <strong id="coins">0</strong></div>
+      <div class="controls">
+        <button id="btnJump" title="Jump (Space / Tap)">Jump ⬆</button>
+        <button id="btnPause" title="P">Pause</button>
+        <button id="btnRestart">Restart</button>
+        <button id="btnLeaderboard">Leaderboard</button>
+      </div>
+    </div>
+
+    <canvas id="game" width="800" height="450"></canvas>
+
+    <div id="startOverlay" class="overlay">
+      <div class="dialog">
+        <h2>Ready?</h2>
+        <p>Jump with Space/↑ or tap. Collect AURA, avoid FUD obstacles.</p>
+        <button id="btnStart">Start</button>
+      </div>
+    </div>
+
+    <div id="gameOver" class="overlay hidden">
+      <div class="dialog">
+        <h2>Game Over</h2>
+        <p><span>Score:</span> <strong id="finalScore">0</strong></p>
+        <p><span>AURA:</span> <strong id="finalCoins">0</strong></p>
+        <div class="controls">
+          <button id="btnRestart2">Restart</button>
+          <button id="btnLeaderboard2">Leaderboard</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="landing" class="overlay">
+      <div class="landing-card">
+        <div class="hero">
+          <img id="heroImg" src="assets/landing.png" alt="Lamumu Runner" />
+        </div>
+        <div class="landing-content">
+          <span class="badge">New</span>
+          <h1>Lamumu Runner</h1>
+          <p>Dash through FUD, collect AURA, and chase the top scores.</p>
+          <small style="opacity:.8">Tip: Space/↑ to jump. Press P to pause.</small>
+          <button id="btnPlay">Play</button>
+          <a class="credit" href="https://x.com/Verontstw" target="_blank" rel="noopener noreferrer">created by <strong>Verontstw</strong></a>
+        </div>
+      </div>
+    </div>
+
+    <div id="leaderboard" class="overlay hidden">
+      <div class="dialog">
+        <h2>Leaderboard</h2>
+        <div id="lbContainer">
+          <table class="lb">
+            <thead>
+              <tr><th>#</th><th>Name</th><th>Score</th><th>AURA</th></tr>
+            </thead>
+            <tbody id="lbBody"></tbody>
+          </table>
+        </div>
+        <button id="btnLbClose">Close</button>
+      </div>
+    </div>
+
+    <div id="nameModal" class="overlay hidden">
+      <div class="dialog">
+        <h2>Save your score</h2>
+        <p>Enter a name to join the leaderboard.</p>
+        <div class="form-row">
+          <input id="nameInput" type="text" placeholder="Your name" maxlength="20" />
+        </div>
+        <div class="controls">
+          <button id="btnNameCancel">Cancel</button>
+          <button id="btnNameSave">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="pauseOverlay" class="overlay hidden">
+      <div class="dialog">
+        <h2>Paused</h2>
+        <p>Press P or click resume to continue.</p>
+        <button id="btnResume">Resume</button>
+      </div>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
