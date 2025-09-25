@@ -377,6 +377,7 @@ requestAnimationFrame(loop);
 const API_URL = window.LAMUMU_API_URL || ""; // e.g., "https://your-api.example.com"; set via <script> or inline
 const SUPABASE_URL = window.SUPABASE_URL || "";
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "";
+const SUPABASE_HAS_CC = window.SUPABASE_HAS_CC || false;
 const LB_KEY = "lamumu_runner_lb_v1";
 
 async function fetchLeaderboardRemote() {
@@ -436,27 +437,41 @@ function openNameModal(scoreValue, auraValue) {
   overlayName?.classList.remove("hidden");
   nameInput?.focus();
 }
-function commitSaveScore() {
+async function commitSaveScore() {
   if (!pendingScore) { overlayName?.classList.add("hidden"); return; }
   const name = (nameInput?.value || "Player").trim() || "Player";
   localStorage.setItem("lamumu_runner_name", name);
   const entry = { name, score: pendingScore.score, aura: pendingScore.aura, at: Date.now() };
+  try {
+    const cc = await fetchCountryCode(500);
+    if (SUPABASE_HAS_CC && cc) entry.cc = cc;
+  } catch {}
   saveLeaderboard(entry).catch(() => saveLeaderboardLocal(entry));
   pendingScore = null;
   overlayName?.classList.add("hidden");
 }
 function renderLeaderboard() {
   loadLeaderboard().then(({ items, source }) => {
-    lbBody.innerHTML = items.map((it, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td></tr>`).join("");
+    lbBody.innerHTML = items.map((it, idx) => {
+      const cc = (it.cc || '').toUpperCase();
+      const flag = cc ? countryFlag(cc) : '';
+      const dateStr = formatDate(it.at);
+      return `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td><td>${flag} ${cc}</td><td>${dateStr}</td></tr>`;
+    }).join("");
     if (lbSourceEl) lbSourceEl.textContent = source === 'supabase' ? 'Source: Supabase' : (source === 'api' ? 'Source: API' : 'Source: Local');
   }).catch(() => {
     const items = getLeaderboardLocal();
-    lbBody.innerHTML = items.map((it, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td></tr>`).join("");
+    lbBody.innerHTML = items.map((it, idx) => {
+      const cc = (it.cc || '').toUpperCase();
+      const flag = cc ? countryFlag(cc) : '';
+      const dateStr = formatDate(it.at);
+      return `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td><td>${flag} ${cc}</td><td>${dateStr}</td></tr>`;
+    }).join("");
     if (lbSourceEl) lbSourceEl.textContent = 'Source: Local';
   });
 }
 function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+  return String(s).replace(/[&<>"]'/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
 }
 
 // Remote-first helpers
@@ -490,3 +505,8 @@ if (typeof window !== 'undefined') {
   window.LM_openNameModal = openNameModal.bind(window);
   window.LM_commitSaveScore = commitSaveScore.bind(window);
 }
+
+// Country/date helpers
+function formatDate(ms) { try { return new Date(ms || Date.now()).toLocaleString(); } catch { return '' } }
+function countryFlag(cc) { if (!cc || cc.length !== 2) return ''; const A=127397; return cc.toUpperCase().split('').map(c=>String.fromCodePoint(A+c.charCodeAt(0))).join(''); }
+async function fetchCountryCode(timeoutMs=500){ if(!SUPABASE_HAS_CC) return ''; try{const c=sessionStorage.getItem('lm_cc'); if(c) return c;}catch{} try{const ctrl=new AbortController(); const id=setTimeout(()=>ctrl.abort(), timeoutMs); const res=await fetch('https://ipapi.co/json/',{signal:ctrl.signal}); clearTimeout(id); if(!res.ok) throw new Error('http '+res.status); const j=await res.json(); const cc=(j&&j.country||'').toUpperCase(); try{ if(cc) sessionStorage.setItem('lm_cc', cc);}catch{} return cc;}catch{ return '' }}
