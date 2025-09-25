@@ -484,9 +484,9 @@ function saveLeaderboardLocal(entry) {
   setLeaderboardLocal(items.slice(0, 10));
 }
 
-// Expose helpers for DevTools Console (ensure after declarations)
+// Expose helpers for DevTools Console without shadowing originals
 if (typeof window !== 'undefined') {
-  window.saveLeaderboard = (...args) => saveLeaderboard(...args);
-  window.openNameModal = (...args) => openNameModal(...args);
-  window.commitSaveScore = (...args) => commitSaveScore(...args);
+  window.LM_saveLeaderboard = saveLeaderboard.bind(window);
+  window.LM_openNameModal = openNameModal.bind(window);
+  window.LM_commitSaveScore = commitSaveScore.bind(window);
 }
