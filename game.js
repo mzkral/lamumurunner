@@ -21,6 +21,7 @@ const btnLeaderboard = document.getElementById("btnLeaderboard");
 const btnLeaderboard2 = document.getElementById("btnLeaderboard2");
 const btnLbClose = document.getElementById("btnLbClose");
 const lbBody = document.getElementById("lbBody");
+const lbSourceEl = document.getElementById("lbSource");
 const btnResume = document.getElementById("btnResume");
 const btnNameSave = document.getElementById("btnNameSave");
 const btnNameCancel = document.getElementById("btnNameCancel");
@@ -372,12 +373,59 @@ function loop(ts) {
 }
 requestAnimationFrame(loop);
 
-// Leaderboard: localStorage
+// Leaderboard: Remote-first with localStorage fallback
+const API_URL = window.LAMUMU_API_URL || ""; // e.g., "https://your-api.example.com"; set via <script> or inline
+const SUPABASE_URL = window.SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY || "";
 const LB_KEY = "lamumu_runner_lb_v1";
-function getLeaderboard() {
+
+async function fetchLeaderboardRemote() {
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/scores?select=*&order=score.desc,aura.desc&limit=10`, {
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Accept": "application/json"
+      },
+      cache: "no-store"
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  if (!API_URL) throw new Error("No API_URL");
+  const res = await fetch(`${API_URL}/scores`, { headers: { "Accept": "application/json" }, cache: "no-store" });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json(); // expect [{name,score,aura,at}]
+}
+async function saveScoreRemote(entry) {
+  if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
+      },
+      body: JSON.stringify(entry)
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return await res.json();
+  }
+  if (!API_URL) throw new Error("No API_URL");
+  const res = await fetch(`${API_URL}/scores`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(entry)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return await res.json();
+}
+
+function getLeaderboardLocal() {
   try { return JSON.parse(localStorage.getItem(LB_KEY)) || []; } catch { return []; }
 }
-function setLeaderboard(items) {
+function setLeaderboardLocal(items) {
   try { localStorage.setItem(LB_KEY, JSON.stringify(items)); } catch {}
 }
 let pendingScore = null;
@@ -392,17 +440,53 @@ function commitSaveScore() {
   if (!pendingScore) { overlayName?.classList.add("hidden"); return; }
   const name = (nameInput?.value || "Player").trim() || "Player";
   localStorage.setItem("lamumu_runner_name", name);
-  const items = getLeaderboard();
-  items.push({ name, score: pendingScore.score, aura: pendingScore.aura, at: Date.now() });
-  items.sort((a,b) => (b.score + b.aura*0.5) - (a.score + a.aura*0.5));
-  setLeaderboard(items.slice(0, 10));
+  const entry = { name, score: pendingScore.score, aura: pendingScore.aura, at: Date.now() };
+  saveLeaderboard(entry).catch(() => saveLeaderboardLocal(entry));
   pendingScore = null;
   overlayName?.classList.add("hidden");
 }
 function renderLeaderboard() {
-  const items = getLeaderboard();
-  lbBody.innerHTML = items.map((it, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td></tr>`).join("");
+  loadLeaderboard().then(({ items, source }) => {
+    lbBody.innerHTML = items.map((it, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td></tr>`).join("");
+    if (lbSourceEl) lbSourceEl.textContent = source === 'supabase' ? 'Source: Supabase' : (source === 'api' ? 'Source: API' : 'Source: Local');
+  }).catch(() => {
+    const items = getLeaderboardLocal();
+    lbBody.innerHTML = items.map((it, idx) => `<tr><td>${idx+1}</td><td>${escapeHtml(it.name)}</td><td>${it.score}</td><td>${it.aura}</td></tr>`).join("");
+    if (lbSourceEl) lbSourceEl.textContent = 'Source: Local';
+  });
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[ch]));
+}
+
+// Remote-first helpers
+async function loadLeaderboard() {
+  try {
+    const items = await fetchLeaderboardRemote();
+    return { items: items.slice(0, 10), source: SUPABASE_URL && SUPABASE_ANON_KEY ? 'supabase' : (API_URL ? 'api' : 'local') };
+  } catch (e) {
+    console.error('Leaderboard fetch failed:', e);
+    return { items: getLeaderboardLocal(), source: 'local' };
+  }
+}
+async function saveLeaderboard(entry) {
+  try {
+    await saveScoreRemote(entry);
+  } catch (e) {
+    console.error('Save remote failed:', e);
+    saveLeaderboardLocal(entry);
+  }
+}
+function saveLeaderboardLocal(entry) {
+  const items = getLeaderboardLocal();
+  items.push(entry);
+  items.sort((a,b) => (b.score + b.aura*0.5) - (a.score + a.aura*0.5));
+  setLeaderboardLocal(items.slice(0, 10));
+}
+
+// Expose helpers for DevTools Console (ensure after declarations)
+if (typeof window !== 'undefined') {
+  window.saveLeaderboard = (...args) => saveLeaderboard(...args);
+  window.openNameModal = (...args) => openNameModal(...args);
+  window.commitSaveScore = (...args) => commitSaveScore(...args);
 }
